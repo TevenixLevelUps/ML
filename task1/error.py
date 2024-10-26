@@ -34,7 +34,7 @@ class Error(ABC):
 class MeanSquareError(Error):
     def _get_error(self, model: Model) -> Callable[[pd.DataFrame | pd.Series], float]:
         def error(data: pd.DataFrame | pd.Series) -> float:
-            return np.sum((model(data) - data[model.outcome] ** 2))
+            return np.sum((model(data) - data[model.outcome]) ** 2).mean()
         return error
 
     def _get_loss_derivative(self, model: Model) -> Callable[[pd.DataFrame | pd.Series], np.ndarray]:
