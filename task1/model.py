@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -12,33 +11,36 @@ class Model(ABC):
             outcome: str,
             parameter: np.ndarray,
     ):
-        self.features = features
-        self.outcome = outcome
-        self.parameter = parameter
-        self._model = None
-        self._gradient = None
+        self._features = features
+        self._outcome = outcome
+        self._parameter = parameter
 
     @property
-    def gradient(self) -> Callable[[pd.DataFrame | pd.Series], np.ndarray]:
-        return self._gradient
+    def features(self):
+        return self.features.copy()
+
+    @property
+    def outcome(self):
+        return self._outcome
+
+    @property
+    def parameter(self):
+        return self._parameter.copy()
+
+    @parameter.setter
+    def parameter(self, value: np.ndarray):
+        self._parameter = value.copy()
 
     @abstractmethod
-    def _get_model(self, parameter: np.ndarray) -> Callable[[pd.DataFrame| pd.Series], pd.Series]:
+    def gradient(self, data: pd.DataFrame | pd.Series) -> np.ndarray:
         pass
 
     @abstractmethod
-    def _get_model_gradient(self, parameter: np.ndarray) -> Callable[[pd.DataFrame | pd.Series], np.ndarray]:
+    def predict(self, data: pd.DataFrame | pd.Series) -> np.ndarray:
         pass
 
-    def fit(self) -> None:
-        self._model = self._get_model(self.parameter)
-        self._gradient = self._get_model_gradient(self.parameter)
-
-    def __call__(self, data: pd.DataFrame) -> pd.Series:
-        return self._model(data)
-
-    def __bool__(self):
-        return self._model is not None
+    def __call__(self, data: pd.DataFrame) -> np.ndarray:
+        return self.predict(data)
 
 
 class LinearRegressionModel(Model):
@@ -50,26 +52,14 @@ class LinearRegressionModel(Model):
         super().__init__(
             features,
             outcome,
-            np.ones(len(features) + 1, dtype=np.float64)
+            np.ones_like(features, dtype=np.float64)
         )
 
-    def _get_model(self, parameter: np.ndarray) -> Callable[[pd.DataFrame | pd.Series], pd.Series]:
-        args = self.features.copy()
+    def gradient(self, data: pd.DataFrame | pd.Series) -> np.ndarray:
+        return data[self._features].to_numpy(dtype=np.float64).transpose()
 
-        def model(data: pd.DataFrame| pd.Series) -> pd.Series:
-            return np.dot(data[args], parameter[:len(args)]) + parameter[len(args)]
-
-        return model
-
-    def _get_model_gradient(self, parameter: np.ndarray) -> Callable[[pd.DataFrame | pd.Series], np.ndarray]:
-        args = self.features.copy()
-
-        def gradient(data: pd.DataFrame | pd.Series) -> pd.Series:
-            grad = data[args].copy()
-            grad["fff"] = 1
-            return grad.to_numpy(dtype=np.float64).transpose()
-
-        return gradient
+    def predict(self, data: pd.DataFrame | pd.Series) -> np.ndarray:
+        return np.dot(data[self._features], self.parameter)
 
 
 class PolynomialRegressionModel(Model):
@@ -85,30 +75,24 @@ class PolynomialRegressionModel(Model):
             outcome,
             np.ones(degree + 1, dtype=np.float64)
         )
+        self.degree = degree
 
-    def _get_model(self, parameter: np.ndarray) -> Callable[[pd.DataFrame | pd.Series], pd.Series]:
-        args = self.features.copy()
+    def predict(self, data: pd.DataFrame | pd.Series) -> np.ndarray:
+        d = np.asarray(data[self._features])
+        if d.ndim == 1:
+            d = d.reshape(-1, 1)
 
-        def model(data: pd.DataFrame | pd.Series):
-            d = data[args]
-            if d.ndim == 1:
-                d = np.asarray(d, dtype=np.float64).reshape(-1, 1)
-            return np.sum(
-                np.asarray(
-                    [np.asarray(d) ** i * self.parameter[i] for i in range(len(self.parameter))]
-                ),
-                axis=(0, 2)
-            )
+        powers = d ** np.arange(self.degree + 1).reshape(-1, 1, 1)
+        sums = powers.sum(axis=2).transpose()
+        prod = np.dot(sums, self.parameter)
 
-        return model
+        return prod
 
-    def _get_model_gradient(self, parameter: np.ndarray) -> Callable[[pd.DataFrame | pd.Series], np.ndarray]:
-        args = self.features.copy()
+    def gradient(self, data: pd.DataFrame | pd.Series) -> np.ndarray:
+        d = np.asarray(data[self._features])
+        if d.ndim == 1:
+            d = d.reshape(-1, 1)
 
-        def gradient(data: pd.DataFrame):
-            return np.fromfunction(
-                lambda i: np.asarray(data[args], dtype=np.float64) ** i,
-                [len(self.parameter)]
-            ).transpose()
+        powers = d ** np.arange(self.degree + 1).reshape(-1, 1, 1)
 
-        return gradient
+        return powers.sum(axis=2)[..., ::-1]
