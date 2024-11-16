@@ -18,9 +18,9 @@ means, stds = np.mean(X, axis=0), np.std(X, axis=0)
 
 for num in range(len(X)):
     for i in range(0, 8):
-        X[num][i] = (X[num][i] - means[i]) / stds[i]
+        X[num][i] = (X[num][i] - means[i]) / stds[i]  # decrease deviation
 
-# adding column of ones
+# add column of ones
 b = np.ones(X.shape[0])
 d = b.reshape((X.shape[0], 1))
 X = np.hstack((d, X))
@@ -57,10 +57,9 @@ class Model(object):
         return self.w - ((eta / len(y)) * np.array(grad))
 
     # cycle of stochastic gradient
-    def stochastic_gradient_descent(self, X, y, w_init, eta=100, max_iter=1e4, min_weight_dist=1e-8):
+    def stochastic_gradient_descent(self, X, y, w_init, errors=[], eta=100, max_iter=1e4, min_weight_dist=1e-8):
         weight_dist = np.inf
         self.w = np.array(w_init).reshape(9, 1)
-        errors = []
         iter_num = 0
 
         # main cycle
@@ -74,13 +73,12 @@ class Model(object):
             errors.append(self.error(y[:, 0], fr_cst.flatten()))
             self.w = new_w
 
-        return errors, eta
+        return errors, self.w
 
     # cycle of full gradient
-    def full_gradient_descent(self, X, y, w_init, eta=0.05, max_iter=1e4, min_weight_dist=1e-8):
+    def full_gradient_descent(self, X, y, w_init, errors=[], eta=0.05, max_iter=1e4, min_weight_dist=1e-8):
         weight_dist = np.inf
         self.w = np.array(w_init).reshape(9, 1)
-        errors = []
         iter_num = 0
 
         # main cycle
@@ -92,13 +90,12 @@ class Model(object):
             errors.append(self.error(y[:, 0], fr_cst.flatten()))
             self.w = new_w
 
-        return errors
+        return errors, self.w
 
     # cycle of batch gradient
-    def batch_gradient_descent(self, X, y, w_init, eta=100, k=20, max_iter=1e4, min_weight_dist=1e-8):
+    def batch_gradient_descent(self, X, y, w_init, errors=[], eta=100, k=20, max_iter=100, min_weight_dist=1e-8):
         weight_dist = np.inf
         self.w = np.array(w_init).reshape(9, 1)
-        errors = []
         iter_num = 0
 
         # main cycle
@@ -112,37 +109,55 @@ class Model(object):
             errors.append(self.error(y[:, 0], fr_cst.flatten()))
             self.w = new_w
 
-        return errors
+        return errors, self.w
 
 
+
+# stoch descent
 m_stoch = Model()
+ws = (np.ones(9) * 0)
+stoch_errors_by_iter = []
+plt.figure(figsize=[12, 8])
+for count in range(10):
+    stoch_errors_by_iter, ws = m_stoch.stochastic_gradient_descent(X=X, y=y,
+                                                                    w_init=ws,
+                                                                    eta=500,
+                                                                    max_iter=100)
+    y_pred_stoch = m_stoch.linear_pred(X)
+    plt.scatter(y_pred_stoch, y, color=(1-count*0.05, 0.3+count*0.03, 0.3+count*0.05, 0.6))
+plt.title("stoch_gradient_descent")
+plt.plot(y, y, 'b')
+plt.show()
+
+# batch descent
 m_batch = Model()
-m_full = Model()
-
-stoch_errors_by_iter, eta = m_stoch.stochastic_gradient_descent(X=X, y=y, w_init=(np.ones(9) * 0), max_iter=1000)
-batch_errors_by_iter = m_batch.batch_gradient_descent(X=X, y=y, w_init=(np.ones(9) * 0), k=20, max_iter=1000)
-full_errors_by_iter = m_full.full_gradient_descent(X=X, y=y, w_init=(np.ones(9) * 0), max_iter=1000)
-
-# prediction graph
-y_pred_stoch = m_stoch.linear_pred(X)
+ws = (np.ones(9) * 0)
+batch_errors_by_iter = []
 plt.figure(figsize=[12, 8])
-plt.scatter(y_pred_stoch, y, c='gray', alpha=0.3)
-plt.plot(y, y, 'b')
-plt.title(f"stochastic_gradient_descent {eta}")
-plt.show()
-
-y_pred_batch = m_batch.linear_pred(X)
-plt.figure(figsize=[12, 8])
-plt.scatter(y_pred_batch, y, c='gray', alpha=0.3)
-plt.plot(y, y, 'b')
+for count in range(10):
+    batch_errors_by_iter, ws = m_batch.batch_gradient_descent(X=X, y=y,
+                                                              w_init=ws, eta=100,
+                                                              errors=batch_errors_by_iter,
+                                                              k=20, max_iter=100)
+    y_pred_batch = m_batch.linear_pred(X)
+    plt.scatter(y_pred_batch, y, color=(1-count*0.05, 0.3+count*0.03, 0.3+count*0.05, 0.6))
 plt.title("batch_gradient_descent")
+plt.plot(y, y, 'b')
 plt.show()
 
-y_pred_full = m_full.linear_pred(X)
+# full descent
+m_full = Model()
+ws = (np.ones(9) * 0)
+full_errors_by_iter = []
 plt.figure(figsize=[12, 8])
-plt.scatter(y_pred_full, y, c='gray', alpha=0.3)
-plt.plot(y, y, 'b')
+for count in range(10):
+    full_errors_by_iter, ws = m_full.full_gradient_descent(X=X, y=y,
+                                                           w_init=ws, eta=0.05,
+                                                           max_iter=100)
+    y_pred_full = m_full.linear_pred(X)
+    plt.scatter(y_pred_full, y, color=(1-count*0.05, 0.3+count*0.03, 0.3+count*0.05, 0.6))
 plt.title("full_gradient_descent")
+plt.plot(y, y, 'b')
 plt.show()
 
 print("stochastic: ", stoch_errors_by_iter[-1]/1e10)
@@ -152,13 +167,16 @@ print("full: ", full_errors_by_iter[-1]/1e10)
 # error descending
 plt.figure(figsize=[4, 6])
 plt.subplot(3, 1, 1)
-plt.plot(stoch_errors_by_iter)
+plt.plot(stoch_errors_by_iter, label=f'Final error: {round(stoch_errors_by_iter[-1]/1e10, 3)}*1e10')
 plt.title("stoch")
+plt.legend()
 plt.subplot(3, 1, 2)
-plt.plot(batch_errors_by_iter)
+plt.plot(batch_errors_by_iter, label=f'Final error: {round(batch_errors_by_iter[-1]/1e10, 3)}*1e10')
 plt.title("batch")
+plt.legend()
 plt.subplot(3, 1, 3)
-plt.plot(full_errors_by_iter)
+plt.plot(full_errors_by_iter, label=f'Final error: {round(full_errors_by_iter[-1]/1e10, 3)}*1e10')
 plt.title("full")
 plt.tight_layout()
+plt.legend()
 plt.show()
