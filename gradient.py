@@ -6,7 +6,7 @@ adver_data = pd.read_csv('data/housing.csv')
 features = ['longitude', 'latitude', 'housing_median_age', 'total_rooms', 'total_bedrooms', 'population', 'households', 'median_income', 'median_house_value']
 
 data = pd.DataFrame(adver_data, columns=features)
-X_filter = data[data["median_house_value"] != 500001.0]  # delete anomal
+X_filter = data[data["median_house_value"] != 500001.0]  # delete abnormal
 mean = data.mean()  # expectation
 std = data.std()  # dispersion
 X_filter = X_filter[(X_filter < mean + 3 * std) & (X_filter > mean - 3 * std)]  # delete outliers
